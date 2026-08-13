@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Cash Flow & DCF Simulator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        cardbg: '#1e293b',
+                        accentBlue: '#38bdf8',
+                        accentGreen: '#4ade80',
+                        accentRed: '#f87171'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-darkbg text-slate-100 min-h-screen font-sans p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Header & Search Bar -->
+        <header class="bg-cardbg p-6 rounded-2xl shadow-xl border border-slate-700/50 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-2">
+                    📈 Cash Flow Scenario Simulator
+                </h1>
+                <p class="text-slate-400 text-sm mt-1">Interactive DCF Valuation & 5-Year Free Cash Flow Forecasting</p>
+            </div>
+
+            <!-- Ticker & API Key Inputs -->
+            <div class="flex flex-wrap sm:flex-nowrap gap-2 w-full md:w-auto">
+                <input type="text" id="tickerInput" value="AAPL" placeholder="Ticker (e.g. AAPL)" 
+                       class="uppercase bg-slate-900 border border-slate-700 px-4 py-2 rounded-xl focus:outline-none focus:border-accentBlue w-full sm:w-32 text-center font-bold">
+                
+                <input type="password" id="apiKeyInput" placeholder="Finnhub API Key (Optional)" 
+                       class="bg-slate-900 border border-slate-700 px-4 py-2 rounded-xl focus:outline-none focus:border-accentBlue w-full sm:w-48 text-sm">
+                
+                <button onclick="fetchMarketData()" 
+                        class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold px-5 py-2 rounded-xl transition-all duration-200 shadow-lg shadow-sky-500/20 w-full sm:w-auto">
+                    Fetch Data
+                </button>
+            </div>
+        </header>
+
+        <!-- Live Market Summary Bar -->
+        <div id="marketSummary" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-cardbg p-4 rounded-xl border border-slate-700/50">
+                <p class="text-slate-400 text-xs font-semibold uppercase">Current Stock Price</p>
+                <p id="dispPrice" class="text-2xl font-extrabold text-white mt-1">$180.00</p>
+            </div>
+            <div class="bg-cardbg p-4 rounded-xl border border-slate-700/50">
+                <p class="text-slate-400 text-xs font-semibold uppercase">Market Cap ($B)</p>
+                <p id="dispMarketCap" class="text-2xl font-extrabold text-white mt-1">$2,800.0B</p>
+            </div>
+            <div class="bg-cardbg p-4 rounded-xl border border-slate-700/50">
+                <p class="text-slate-400 text-xs font-semibold uppercase">Shares Outstanding ($M)</p>
+                <p id="dispShares" class="text-2xl font-extrabold text-white mt-1">15,500M</p>
+            </div>
+            <div class="bg-cardbg p-4 rounded-xl border border-slate-700/50">
+                <p class="text-slate-400 text-xs font-semibold uppercase">Base Free Cash Flow ($M)</p>
+                <p id="dispBaseFCF" class="text-2xl font-extrabold text-sky-400 mt-1">$100,000M</p>
+            </div>
+        </div>
+
+        <!-- Main Workspace: Sliders & Chart -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Controls Sidebar (Inputs & Sliders) -->
+            <div class="lg:col-span-5 bg-cardbg p-6 rounded-2xl border border-slate-700/50 space-y-5">
+                <h2 class="text-lg font-bold border-b border-slate-700 pb-2 text-slate-200">Simulation Parameters</h2>
+                
+                <!-- Base Cash Flow Input -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-300">Base FCF ($ Millions)</span>
+                        <span id="baseFcfVal" class="font-bold text-sky-400">$100,000</span>
+                    </div>
+                    <input type="number" id="baseFcfInput" value="100000" oninput="updateSimulation()" 
+                           class="w-full bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg text-sm text-sky-400 focus:outline-none">
+                </div>
+
+                <!-- Growth Rate Sliders -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-rose-400">Bear Case Growth Rate (%)</span>
+                        <span id="bearGrowthVal" class="font-bold">3.0%</span>
+                    </div>
+                    <input type="range" id="bearGrowth" min="-10" max="30" step="0.5" value="3.0" oninput="updateSimulation()" class="w-full accent-rose-500">
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-sky-400">Base Case Growth Rate (%)</span>
+                        <span id="baseGrowthVal" class="font-bold">8.5%</span>
+                    </div>
+                    <input type="range" id="baseGrowth" min="-10" max="40" step="0.5" value="8.5" oninput="updateSimulation()" class="w-full accent-sky-400">
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-emerald-400">Bull Case Growth Rate (%)</span>
+                        <span id="bullGrowthVal" class="font-bold">15.0%</span>
+                    </div>
+                    <input type="range" id="bullGrowth" min="-10" max="50" step="0.5" value="15.0" oninput="updateSimulation()" class="w-full accent-emerald-400">
+                </div>
+
+                <hr class="border-slate-700">
+
+                <!-- Valuation Assumptions -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-300">Discount Rate / WACC (%)</span>
+                        <span id="waccVal" class="font-bold">9.0%</span>
+                    </div>
+                    <input type="range" id="waccInput" min="5" max="20" step="0.25" value="9.0" oninput="updateSimulation()" class="w-full accent-indigo-400">
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-300">Terminal Growth Rate (%)</span>
+                        <span id="terminalGrowthVal" class="font-bold">2.5%</span>
+                    </div>
+                    <input type="range" id="terminalGrowthInput" min="0" max="5" step="0.1" value="2.5" oninput="updateSimulation()" class="w-full accent-indigo-400">
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-300">Projection Horizon (Years)</span>
+                        <span id="horizonVal" class="font-bold">5 Years</span>
+                    </div>
+                    <input type="range" id="horizonInput" min="3" max="10" step="1" value="5" oninput="updateSimulation()" class="w-full accent-indigo-400">
+                </div>
+            </div>
+
+            <!-- Visualization & Valuation Results -->
+            <div class="lg:col-span-7 space-y-6">
+                
+                <!-- Chart Card -->
+                <div class="bg-cardbg p-6 rounded-2xl border border-slate-700/50">
+                    <h3 class="text-md font-bold text-slate-300 mb-4">Projected Free Cash Flow ($ Millions)</h3>
+                    <div class="relative h-64 md:h-80">
+                        <canvas id="fcfChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Valuation Outputs Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-cardbg p-5 rounded-2xl border border-rose-500/30 text-center">
+                        <span class="text-rose-400 font-bold text-xs uppercase tracking-wider">Bear Case Intrinsic</span>
+                        <p id="bearPrice" class="text-2xl font-extrabold text-white mt-2">$120.50</p>
+                        <p id="bearUpside" class="text-xs font-semibold mt-1 text-rose-400">-33.0% upside</p>
+                    </div>
+
+                    <div class="bg-cardbg p-5 rounded-2xl border border-sky-500/30 text-center">
+                        <span class="text-sky-400 font-bold text-xs uppercase tracking-wider">Base Case Intrinsic</span>
+                        <p id="basePrice" class="text-2xl font-extrabold text-white mt-2">$195.20</p>
+                        <p id="baseUpside" class="text-xs font-semibold mt-1 text-emerald-400">+8.4% upside</p>
+                    </div>
+
+                    <div class="bg-cardbg p-5 rounded-2xl border border-emerald-500/30 text-center">
+                        <span class="text-emerald-400 font-bold text-xs uppercase tracking-wider">Bull Case Intrinsic</span>
+                        <p id="bullPrice" class="text-2xl font-extrabold text-white mt-2">$275.80</p>
+                        <p id="bullUpside" class="text-xs font-semibold mt-1 text-emerald-400">+53.2% upside</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        let fcfChart = null;
+
+        // Current Market Data State
+        let marketData = {
+            price: 180.00,
+            marketCap: 2800000, // $M
+            sharesOutstanding: 15550, // M
+            baseFcf: 100000 // $M
+        };
+
+        // Initialize App
+        window.onload = () => {
+            initChart();
+            updateSimulation();
+        };
+
+        // Initialize Chart.js
+        function initChart() {
+            const ctx = document.getElementById('fcfChart').getContext('2d');
+            fcfChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Bull Case', borderColor: '#4ade80', backgroundColor: 'rgba(74, 222, 128, 0.1)', data: [], fill: true, tension: 0.3 },
+                        { label: 'Base Case', borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.15)', data: [], fill: true, tension: 0.3 },
+                        { label: 'Bear Case', borderColor: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.1)', data: [], fill: true, tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                    }
+                }
+            });
+        }
+
+        // Run DCF Calculation & Update Visuals
+        function updateSimulation() {
+            // Read Inputs
+            const baseFcf = parseFloat(document.getElementById('baseFcfInput').value) || 0;
+            const bearG = parseFloat(document.getElementById('bearGrowth').value) / 100;
+            const baseG = parseFloat(document.getElementById('baseGrowth').value) / 100;
+            const bullG = parseFloat(document.getElementById('bullGrowth').value) / 100;
+            
+            const wacc = parseFloat(document.getElementById('waccInput').value) / 100;
+            const gTerm = parseFloat(document.getElementById('terminalGrowthInput').value) / 100;
+            const horizon = parseInt(document.getElementById('horizonInput').value);
+
+            // Update Label Displays
+            document.getElementById('baseFcfVal').innerText = `$${baseFcf.toLocaleString()}`;
+            document.getElementById('bearGrowthVal').innerText = `${(bearG * 100).toFixed(1)}%`;
+            document.getElementById('baseGrowthVal').innerText = `${(baseG * 100).toFixed(1)}%`;
+            document.getElementById('bullGrowthVal').innerText = `${(bullG * 100).toFixed(1)}%`;
+            document.getElementById('waccVal').innerText = `${(wacc * 100).toFixed(2)}%`;
+            document.getElementById('terminalGrowthVal').innerText = `${(gTerm * 100).toFixed(1)}%`;
+            document.getElementById('horizonVal').innerText = `${horizon} Years`;
+
+            // Calculate Projections & DCF Values
+            const labels = ['Year 0'];
+            const bearFCFs = [baseFcf], baseFCFs = [baseFcf], bullFCFs = [baseFcf];
+
+            for (let t = 1; t <= horizon; t++) {
+                labels.push(`Year ${t}`);
+                bearFCFs.push(baseFcf * Math.pow(1 + bearG, t));
+                baseFCFs.push(baseFcf * Math.pow(1 + baseG, t));
+                bullFCFs.push(baseFcf * Math.pow(1 + bullG, t));
+            }
+
+            // Update Chart
+            fcfChart.data.labels = labels;
+            fcfChart.data.datasets[0].data = bullFCFs;
+            fcfChart.data.datasets[1].data = baseFCFs;
+            fcfChart.data.datasets[2].data = bearFCFs;
+            fcfChart.update();
+
+            // DCF Valuations
+            const bearValue = calculateDCF(baseFcf, bearG, wacc, gTerm, horizon, marketData.sharesOutstanding);
+            const baseValue = calculateDCF(baseFcf, baseG, wacc, gTerm, horizon, marketData.sharesOutstanding);
+            const bullValue = calculateDCF(baseFcf, bullG, wacc, gTerm, horizon, marketData.sharesOutstanding);
+
+            // Update Price & Upside Displays
+            updateValuationCard('bearPrice', 'bearUpside', bearValue, marketData.price);
+            updateValuationCard('basePrice', 'baseUpside', baseValue, marketData.price);
+            updateValuationCard('bullPrice', 'bullUpside', bullValue, marketData.price);
+        }
+
+        // DCF Formula Implementation
+        function calculateDCF(fcf0, growth, wacc, gTerm, horizon, shares) {
+            if (wacc <= gTerm) return 0; // Safeguard division by zero
+
+            let pvFCF = 0;
+            let currentFCF = fcf0;
+
+            for (let t = 1; t <= horizon; t++) {
+                currentFCF *= (1 + growth);
+                pvFCF += currentFCF / Math.pow(1 + wacc, t);
+            }
+
+            // Terminal Value
+            const terminalValue = (currentFCF * (1 + gTerm)) / (wacc - gTerm);
+            const pvTerminalValue = terminalValue / Math.pow(1 + wacc, horizon);
+
+            const impliedEnterpriseValue = pvFCF + pvTerminalValue;
+            const impliedPricePerShare = impliedEnterpriseValue / shares;
+
+            return impliedPricePerShare;
+        }
+
+        function updateValuationCard(priceId, upsideId, impliedPrice, currentPrice) {
+            document.getElementById(priceId).innerText = `$${impliedPrice.toFixed(2)}`;
+            const upside = ((impliedPrice - currentPrice) / currentPrice) * 100;
+            const upsideElem = document.getElementById(upsideId);
+            
+            upsideElem.innerText = `${upside >= 0 ? '+' : ''}${upside.toFixed(1)}% upside`;
+            upsideElem.className = `text-xs font-semibold mt-1 ${upside >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+        }
+
+        // Fetch Financial Market Data via API
+        async function fetchMarketData() {
+            const symbol = document.getElementById('tickerInput').value.trim().toUpperCase();
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+
+            if (!symbol) return;
+
+            if (apiKey) {
+                try {
+                    // Fetch Quote from Finnhub API
+                    const quoteRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`);
+                    const quote = await quoteRes.json();
+
+                    // Fetch Profile from Finnhub
+                    const profileRes = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${apiKey}`);
+                    const profile = await profileRes.json();
+
+                    if (quote.c && profile.marketCapitalization) {
+                        marketData.price = quote.c;
+                        marketData.marketCap = profile.marketCapitalization;
+                        marketData.sharesOutstanding = profile.shareOutstanding || (profile.marketCapitalization / quote.c);
+                        
+                        // Estimate Base Cash Flow (~8% of Market Cap as fallback if financials endpoints restricted)
+                        marketData.baseFcf = Math.round(marketData.marketCap * 0.05);
+
+                        renderMarketSummary(symbol);
+                    } else {
+                        alert('Could not fetch data for ticker. Please check symbol or API Key.');
+                    }
+                } catch (e) {
+                    alert('Error connecting to API. Reverting to manual inputs.');
+                }
+            } else {
+                // Mock Data Fallback for Demo Purposes
+                marketData.price = Math.floor(Math.random() * 150) + 50;
+                marketData.sharesOutstanding = 1000;
+                marketData.marketCap = (marketData.price * marketData.sharesOutstanding) / 1000;
+                marketData.baseFcf = Math.round(marketData.marketCap * 0.06 * 1000);
+
+                renderMarketSummary(symbol + ' (Demo Data)');
+            }
+        }
+
+        function renderMarketSummary(label) {
+            document.getElementById('dispPrice').innerText = `$${marketData.price.toFixed(2)}`;
+            document.getElementById('dispMarketCap').innerText = `$${(marketData.marketCap / 1000).toFixed(1)}B`;
+            document.getElementById('dispShares').innerText = `${Math.round(marketData.sharesOutstanding).toLocaleString()}M`;
+            document.getElementById('dispBaseFCF').innerText = `$${marketData.baseFcf.toLocaleString()}M`;
+            
+            document.getElementById('baseFcfInput').value = marketData.baseFcf;
+            updateSimulation();
+        }
+    </script>
+</body>
+</html>
